@@ -2,15 +2,13 @@ import os
 import json
 import asyncio
 import logging
-import subprocess
 import shutil
 import aiofiles
 import humanize
 from pathlib import Path
 from datetime import datetime, timedelta
-from typing import Optional, Dict, List
-from dataclasses import dataclass, asdict
-from collections import deque
+from typing import Optional, Dict
+from dataclasses import dataclass
 from telethon import TelegramClient, events
 from telethon.tl.types import DocumentAttributeFilename, Message
 from dotenv import load_dotenv
@@ -76,34 +74,31 @@ CONFIG = {
     'MAX_QUEUE_SIZE' :50,  # Max No of Files to be kept in the Queue for Downloading.
 }
 
-errors = []
+env_errors = []  # Rename the list
 
 for env_var, settings in REQUIRED_ENV_VARS.items():
     value = os.getenv(env_var)
 
-    # Check if variable exists
     if not value:
-        errors.append(f"{settings['description']} ({env_var}) is not set")
+        env_errors.append(f"{settings['description']} ({env_var}) is not set")
         continue
 
-    # Validate value if validator exists
     if 'validator' in settings and not settings['validator'](value):
-        errors.append(f"{settings['description']} ({env_var}) {settings['error_msg']}")
+        env_errors.append(f"{settings['description']} ({env_var}) {settings['error_msg']}")
         continue
 
     CONFIG[env_var] = value
 
-# Log errors if any required variables are missing or invalid
-if errors:
+if env_errors:
     logger.error("Environment variable errors:")
-    for error in errors:
+    for error in env_errors:
         logger.error(f"- {error}")
     raise ValueError("Invalid environment configuration")
 
 
 class BotLogger:
-    def __init__(self, logger, message=None):
-        self.logger = logger
+    def __init__(self, log_instance, message=None):
+        self.logger = log_instance
         self.message = message
 
     async def info(self, text: str):
