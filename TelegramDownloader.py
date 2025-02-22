@@ -1,6 +1,3 @@
-
-
-
 import os
 import json
 import asyncio
@@ -56,7 +53,7 @@ REQUIRED_ENV_VARS = {
         'error_msg': 'must be a 32-character hexadecimal string'
     },
     'MKVPROPEDIT_PATH': {
-        'description': 'Location of MKV TOOL NIX and its subprocess MKVPROPEDIT for removing the Tags from MKV Files',    
+        'description': 'Location of MKV TOOL NIX and its subprocess MKVPROPEDIT for removing the Tags from MKV Files',
         'validator': lambda x: Path(x).exists(),
         'error_msg': 'path does not exist. Please check the availability of MKV TOOL NIX'
     },
@@ -76,24 +73,24 @@ CONFIG = {
     'MAX_FILE_SIZE': 6 * 1024 * 1024 * 1024, # 6 GB
     'CONCURRENT_DOWNLOADS': 3, # No downloads that should be done at the Same Time
     'MAX_RETRIES': 5, # Number of Attempts to be done to download the file before declaring it is not possible.
-    'MAX_QUEUE_SIZE' :50, #Max No of Files to be kept in the Queue for Downloading.
+    'MAX_QUEUE_SIZE' :50,  # Max No of Files to be kept in the Queue for Downloading.
 }
 
 errors = []
 
 for env_var, settings in REQUIRED_ENV_VARS.items():
     value = os.getenv(env_var)
-    
+
     # Check if variable exists
     if not value:
         errors.append(f"{settings['description']} ({env_var}) is not set")
         continue
-        
+
     # Validate value if validator exists
     if 'validator' in settings and not settings['validator'](value):
         errors.append(f"{settings['description']} ({env_var}) {settings['error_msg']}")
         continue
-        
+
     CONFIG[env_var] = value
 
 # Log errors if any required variables are missing or invalid
@@ -102,7 +99,8 @@ if errors:
     for error in errors:
         logger.error(f"- {error}")
     raise ValueError("Invalid environment configuration")
-    
+
+
 class BotLogger:
     def __init__(self, logger, message=None):
         self.logger = logger
@@ -125,7 +123,7 @@ class BotLogger:
         self.logger.warning(text)
         if self.message:
             await self.message.reply(f"⚠️ Warning: {text}")
-            
+
     async def success(self, text: str):
         """Log success message to both logger and bot if message object exists"""
         self.logger.info(text)
@@ -139,6 +137,7 @@ class DownloadStats:
     failed_downloads: int = 0
     total_bytes: int = 0
     start_time: datetime = datetime.now()
+
 
 @dataclass
 class DownloadTask:
@@ -160,6 +159,7 @@ class DownloadTask:
     mb_downloaded: float = 0.00
     mb_total: float = 0.00
 
+
 class TelegramDownloader:
     def __init__(self):
         self.client = None
@@ -170,10 +170,10 @@ class TelegramDownloader:
         self.downloads_in_progress: Dict[str, DownloadTask] = {}
         self.download_semaphore = asyncio.Semaphore(self.concurrent_downloads)
         self.max_queue_size = CONFIG['MAX_QUEUE_SIZE']  # Maximum queue size
-        self.download_queue = asyncio.Queue(maxsize=self.max_queue_size) # Changed from Deque to asyncio.Queue
+        self.download_queue = asyncio.Queue(maxsize=self.max_queue_size)  # Changed from Deque to asyncio.Queue
         self.last_backup = datetime.now()
         self.backup_interval = timedelta(hours=1)
-        
+
     def load_history(self) -> dict:
         try:
             with open(CONFIG['HISTORY_FILE'], 'r') as f:
@@ -186,7 +186,7 @@ class TelegramDownloader:
             await f.write(json.dumps(self.download_history))
 
     async def process_download_queue(self):
-        while True: # Run indefinitely
+        while True:  # Run indefinitely
             task = await self.download_queue.get()
             async with self.download_semaphore:
                 await self.start_download_task(task)
@@ -219,22 +219,22 @@ class TelegramDownloader:
 
             task.last_progress_time = now
             task.mb_downloaded = current / (1024 * 1024)  # Update the downloaded size in MB
-            task.mb_total = total / (1024 * 1024)         # Update the total size in MB
+            task.mb_total = total / (1024 * 1024)  # Update the total size in MB
             task.percentage_completed = (current / total) * 100
-        
+
             # percentage = (current / total) * 100
             # mb_downloaded = current / (1024 * 1024)
             # mb_total = total / (1024 * 1024)
-            
+
             current_time = datetime.now().strftime("%H:%M:%S")
             current_date = datetime.now().strftime("%d/%b/%Y")
 
-            # progress_text = f"""  
-                # Downloading: {task.file_name}  
-                # Progress: {task.percentage_completed:.2f}%  
-                # Downloaded: {task.mb_downloaded:.2f}MB of {task.mb_total:.2f}MB  
-                # Time of Update: {current_time} on {current_date}                
-                # """
+            # progress_text = f"""
+            # Downloading: {task.file_name}
+            # Progress: {task.percentage_completed:.2f}%
+            # Downloaded: {task.mb_downloaded:.2f}MB of {task.mb_total:.2f}MB
+            # Time of Update: {current_time} on {current_date}
+            # """
 
             progress_text = (
                 f"Downloading: {task.file_name}\n"
@@ -250,7 +250,7 @@ class TelegramDownloader:
                 task.progress_message = await task.message.reply(progress_text)
 
         except Exception as e:
-            logger.error(f"Error in progress callback: {str(e)}")                
+            logger.error(f"Error in progress callback: {str(e)}")
 
     async def calculate_download_speed(self, current: int, total: int, task: DownloadTask) -> float:
         """Calculate download speed and ETA."""
@@ -265,7 +265,7 @@ class TelegramDownloader:
         speed = current / elapsed_time  # bytes per second
         remaining_bytes = total - current
         eta = timedelta(seconds=int(remaining_bytes / speed)) if speed > 0 else None
-        
+
         return speed, eta
 
     async def backup_history(self):
@@ -287,7 +287,7 @@ class TelegramDownloader:
                 await self.process_successful_download(task, download_path)
             else:
                 await self._handle_failed_download(task)
-            
+
             return success, download_path
 
         finally:
@@ -296,28 +296,28 @@ class TelegramDownloader:
 
     async def perform_download(self, task: DownloadTask) -> tuple[bool, Optional[str]]:
         """Handle the actual download process with retries."""
-        #removed --> async with self.download_semaphore:
+        # removed --> async with self.download_semaphore:
         for attempt in range(task.max_retries):
             try:
                 download_path = Path(CONFIG['DOWNLOAD_PATH']) / task.file_name
                 temp_path = f"{download_path}.part"
 
                 await task.bot_logger.info(f"Download attempt {attempt + 1}/{task.max_retries}")
-                
+
                 async def progress_callback(current, total):
                     speed, eta = await self.calculate_download_speed(current, total, task)
                     task.download_speed = speed
                     task.eta = eta
                     await self.progress_callback(current, total, task)
-           
+
                 await asyncio.wait_for(
                     task.message.download_media(
                         temp_path,
                         progress_callback=progress_callback,
-                        #part_size_kb=CONFIG['CHUNK_SIZE']  # Use your config value
+                        # part_size_kb=CONFIG['CHUNK_SIZE']  # Use your config value
                     ),
-                    timeout=42*3600
-                    )
+                    timeout=42 * 3600
+                )
 
                 if Path(temp_path).exists():
                     # Verify file integrity
@@ -331,11 +331,11 @@ class TelegramDownloader:
                 await task.bot_logger.error(f"Download timed out (attempt {attempt + 1})")
             except Exception as e:
                 await task.bot_logger.error(f"Download failed (attempt {attempt + 1}): {str(e)}")
-            
+
             task.retries += 1
             if attempt < task.max_retries - 1:
                 await asyncio.sleep(5 * (attempt + 1))  # Exponential backoff
-            
+
             if Path(temp_path).exists():
                 Path(temp_path).unlink()
 
@@ -357,12 +357,12 @@ class TelegramDownloader:
     async def get_queue_status(self) -> str:
         """Get formatted queue status message."""
         active_downloads = len(self.downloads_in_progress)
-        queued_downloads = self.download_queue.qsize() # Changed from --> len(self.download_queue)
-        
+        queued_downloads = self.download_queue.qsize()  # Changed from --> len(self.download_queue)
+
         status = f"📊 Queue Status:\n"
         status += f"Active downloads: {active_downloads}/{self.concurrent_downloads}\n"
         status += f"Queued downloads: {queued_downloads}/{self.max_queue_size}\n\n"
-                
+
         if self.downloads_in_progress:
             status += "🔄 Current Downloads:\n"
             for task in self.downloads_in_progress.values():
@@ -371,14 +371,14 @@ class TelegramDownloader:
                 downloaded = f"{task.mb_downloaded:.2f} MB out of {task.mb_total:.2f} MB"
                 eta = str(task.eta).split('.')[0] if task.eta else "calculating..."
                 status += f"\n- {task.file_name}\n  progress: {progress}\n  Speed: {speed}\n  downloaded: {downloaded}\n  ETA: {eta}\n"
-                
+
         return status
 
     async def get_stats(self) -> str:
         """Get formatted statistics message."""
         uptime = datetime.now() - self.stats.start_time
-        success_rate = ((self.stats.total_downloads - self.stats.failed_downloads) / 
-                       max(self.stats.total_downloads, 1) * 100)
+        success_rate = ((self.stats.total_downloads - self.stats.failed_downloads) /
+                        max(self.stats.total_downloads, 1) * 100)
 
         stats = f"📈 Download Statistics:\n"
         stats += f"\nTotal downloads: {self.stats.total_downloads}\n"
@@ -386,21 +386,21 @@ class TelegramDownloader:
         stats += f"\nSuccess rate: {success_rate:.1f}%\n"
         stats += f"\nTotal data: {humanize.naturalsize(self.stats.total_bytes, binary=True)}\n"
         stats += f"\nUptime: {str(uptime).split('.')[0]}"
-        
+
         return stats
 
     async def handle_commands(self, event):
         """Handle bot commands."""
         command = event.message.message.lower()
-        
+
         if command == '/status':
             status = await self.get_queue_status()
             await event.reply(status)
-            
+
         elif command == '/stats':
             stats = await self.get_stats()
             await event.reply(stats)
-            
+
         elif command == '/clear_queue':
             # Add authentication check here
             while not self.download_queue.empty():
@@ -410,7 +410,7 @@ class TelegramDownloader:
                 except asyncio.QueueEmpty:
                     break
             await event.reply("✅ Download queue cleared")
-            
+
         elif command == '/help':
             help_text = (
                 "Available commands:\n"
@@ -444,14 +444,14 @@ class TelegramDownloader:
     async def start(self):
         """Start the bot with enhanced features."""
         Path(CONFIG['DOWNLOAD_PATH']).mkdir(parents=True, exist_ok=True)
-        
+
         self.client = TelegramClient('bot_session', CONFIG['TELEGRAM_API_ID'], CONFIG['TELEGRAM_API_HASH'])
-        
+
         # Start cleanup task
         asyncio.create_task(self.cleanup_old_files())
         for _ in range(CONFIG['CONCURRENT_DOWNLOADS']):
             asyncio.create_task(self.process_download_queue())
-        
+
         @self.client.on(events.NewMessage)
         async def handle_new_message(event):
             if event.message.message.startswith('/'):
@@ -460,7 +460,7 @@ class TelegramDownloader:
 
             if event.message.media:
                 try:
-                    if self.download_queue.qsize() >= self.max_queue_size: # Changed from --> if len(self.download_queue) >= self.max_queue_size:
+                    if self.download_queue.qsize() >= self.max_queue_size:  # Changed from --> if len(self.download_queue) >= self.max_queue_size:
                         await event.reply("⚠️ Queue is full. Please try again later.")
                         return
 
@@ -471,10 +471,10 @@ class TelegramDownloader:
 
                     task = await self._create_download_task(event)
                     if task:
-                        await self.download_queue.put(task) # changed from --> self.download_queue.append(task) 
+                        await self.download_queue.put(task)  # changed from --> self.download_queue.append(task)
                         if not self.is_downloading:
                             asyncio.create_task(self.process_download_queue())
-                
+
                 except Exception as e:
                     logger.error(f"Error handling message: {str(e)}")
                     await event.reply(f"❌ Error processing file: {str(e)}")
@@ -495,23 +495,23 @@ class TelegramDownloader:
         try:
             attributes = event.message.media.document.attributes
             file_name = next(
-                (attr.file_name for attr in attributes 
+                (attr.file_name for attr in attributes
                  if isinstance(attr, DocumentAttributeFilename)),
                 f"unknown_file_{event.message.id}"
             )
-            
+
             file_size = event.message.media.document.size
-            
+
             # Check if file size is within limits (e.g., 2GB)
             if file_size > CONFIG['MAX_FILE_SIZE']:
-                await event.reply(f"⚠️ File is too large (max {humanize.naturalsize(CONFIG['MAX_FILE_SIZE'])})") 
+                await event.reply(f"⚠️ File is too large (max {humanize.naturalsize(CONFIG['MAX_FILE_SIZE'])})")
                 return None
 
             queued_message = await event.reply(
                 f"📥 Added to queue: {file_name}\n"
                 f"Size: {humanize.naturalsize(file_size, binary=True)}"
             )
-            
+
             return DownloadTask(
                 message=event.message,
                 file_name=file_name,
@@ -521,7 +521,7 @@ class TelegramDownloader:
         except Exception as e:
             logger.error(f"Error creating download task: {str(e)}")
             await event.reply("❌ Error processing file request")
-            return None            
+            return None
 
     async def _handle_failed_download(self, task: DownloadTask):
         """Handle a failed download attempt."""
@@ -641,16 +641,17 @@ class TelegramDownloader:
         except Exception as e:
             await task.bot_logger.error(f"Error moving archive file: {e}")
 
-
     async def process_mkv_file(self, task: DownloadTask, file_path: Path, destination_folder: Path):
         """Process an MKV file using mkvpropedit."""
         try:
             if not CONFIG['MKVPROPEDIT_PATH']:
-                await task.bot_logger.warning("MKVPropedit path is not set. Skipping MKV processing on the file downloaded.")
+                await task.bot_logger.warning(
+                    "MKVPropedit path is not set. Skipping MKV processing on the file downloaded.")
                 return
 
             if not Path(CONFIG['MKVPROPEDIT_PATH']).exists():
-                await task.bot_logger.error("mkvpropedit executable not found. Skipping MKV processing on the downloaded file.")
+                await task.bot_logger.error(
+                    "mkvpropedit executable not found. Skipping MKV processing on the downloaded file.")
                 return
 
             # Construct command
@@ -671,7 +672,8 @@ class TelegramDownloader:
             stdout, stderr = await process.communicate()
 
             if process.returncode != 0:
-                await task.bot_logger.error(f"MKV metadata update failed for {file_path.name}. Error: {stderr.decode()}")
+                await task.bot_logger.error(
+                    f"MKV metadata update failed for {file_path.name}. Error: {stderr.decode()}")
                 return
 
             # Move the file to the destination folder using shutil.move
@@ -679,20 +681,20 @@ class TelegramDownloader:
             move_path = destination_folder / cleaned_filename
 
             try:
-               shutil.move(str(file_path), str(move_path))
-               await task.bot_logger.success(f"MKV metadata updated and file moved to {move_path}")
+                shutil.move(str(file_path), str(move_path))
+                await task.bot_logger.success(f"MKV metadata updated and file moved to {move_path}")
             except Exception as move_error:
-               await task.bot_logger.error(f"Error moving MKV file: {move_error}")
+                await task.bot_logger.error(f"Error moving MKV file: {move_error}")
 
         except Exception as e:
             await task.bot_logger.error(f"Error processing MKV file: {str(e)}")
 
-        
+
 async def main():
     if not all([CONFIG['TELEGRAM_API_ID'], CONFIG['TELEGRAM_API_HASH'], CONFIG['TELEGRAM_BOT_TOKEN']]):
         logger.error("Missing required environment variables. Please check your .env file.")
         return
-    
+
     while True:
         try:
             downloader = TelegramDownloader()
@@ -700,6 +702,7 @@ async def main():
         except Exception as e:
             logger.error(f"Bot crashed: {str(e)}")
             await asyncio.sleep(5)  # Wait before restarting
+
 
 if __name__ == "__main__":
     asyncio.run(main())
