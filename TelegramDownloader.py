@@ -311,7 +311,7 @@ class TelegramDownloader:
                         progress_callback=progress_callback,
                         # part_size_kb=CONFIG['CHUNK_SIZE']  # Use your config value
                     ),
-                    timeout=42 * 3600
+                    timeout=49 * 3600
                 )
 
                 if Path(temp_path).exists():
